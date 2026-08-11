@@ -110,7 +110,14 @@
           <div class="content">${t.script.substring(0, 120)}${t.script.length > 120 ? '...' : ''}</div>
           <div class="script-link"><a href="#" class="show-script" data-script="${t.script.replace(/"/g, '&quot;')}">📋 查看完整脚本框架</a></div>
     }
-
+// 点击展开完整脚本
+document.getElementById('cardContainer').addEventListener('click', function(e) {
+  if (e.target.classList.contains('show-script')) {
+    e.preventDefault();
+    e.target.innerText = e.target.dataset.script.replace(/\n/g, '<br>');
+    e.target.style.cursor = 'default';
+  }
+});
     function filterTopics() {
       const searchTerm = searchInput.value.toLowerCase();
       const filtered = topics.filter(t => {
