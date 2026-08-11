@@ -108,9 +108,7 @@
           </div>
           <h3>${t.title}</h3>
           <div class="content">${t.script.substring(0, 120)}${t.script.length > 120 ? '...' : ''}</div>
-          <div class="script-link"><a href="#" onclick="alert('完整脚本：\\n\\n${t.script.replace(/'/g, "\\'")}'); return false;">📋 查看完整脚本框架</a></div>
-        </div>
-      `).join('');
+          <div class="script-link"><a href="#" class="show-script" data-script="${t.script.replace(/"/g, '&quot;')}">📋 查看完整脚本框架</a></div>
     }
 
     function filterTopics() {
