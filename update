@@ -1,0 +1,89 @@
+import json
+import os
+import re
+from datetime import date
+from openai import OpenAI
+
+# 配置
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")  # 从 GitHub Secrets 读取
+MAX_TOPICS = 40   # 保持 topics 总数不超过此值
+GENERATE_COUNT = 10  # 每次生成数量
+
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+# 读取现有数据
+with open("topics.json", "r", encoding="utf-8") as f:
+    data = json.load(f)
+
+existing_titles = [item['title'].lower().strip() for item in data['topics']]
+
+# 构造提示词
+prompt = f"""你是一位留学生求职领域的爆款内容专家，熟知2026年8月北美和英国求职最新动态（如H1B改革、PSW转工签薪资门槛、秋招提前批、大厂裁员与扩招等）。
+请生成 {GENERATE_COUNT} 个全新的、具有爆款潜力的选题，覆盖美国金融/科技、英国四大/投行，适用于抖音/小红书/视频号。
+每个选题需包含：country（us或uk）、platform（抖音/小红书/视频号/全平台）、title（中文，吸引眼球）、type（金融/科技/四大/投行）、script（约100字中文脚本要点）。
+
+输出纯JSON数组，格式如下：
+[
+  {{
+    "country": "us",
+    "platform": "抖音",
+    "title": "...",
+    "type": "科技",
+    "script": "..."
+  }}
+]
+
+要求：
+- 标题具有冲击力，包含数字、冲突、反常识或利益点。
+- 内容基于2026年8月真实政策、行业趋势，不得凭空捏造不可信信息。
+- script字段要给出具体拍摄角度或图文要点，不要空泛。
+- 不要与以下已有标题重复或高度相似：{json.dumps(existing_titles[-20:])}
+"""
+
+try:
+    response = client.chat.completions.create(
+        model="gpt-4o",  # 或 gpt-3.5-turbo-16k，成本更低
+        messages=[
+            {"role": "system", "content": "你是一个专业的内容策划助手，输出严格符合格式的JSON。"},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.9,
+        max_tokens=3000
+    )
+    result_text = response.choices[0].message.content.strip()
+    # 清理可能的Markdown代码块标记
+    json_match = re.search(r'\[.*\]', result_text, re.DOTALL)
+    if json_match:
+        new_topics = json.loads(json_match.group())
+    else:
+        new_topics = json.loads(result_text)
+except Exception as e:
+    print(f"API调用失败：{e}")
+    exit(1)
+
+# 简单去重：标题完全相同或相似度极高则跳过
+def title_similar(t1, t2):
+    # 去掉标点符号后比较前20个字符
+    def clean(s):
+        return re.sub(r'[^\w]', '', s.lower())[:20]
+    return clean(t1) == clean(t2)
+
+added = 0
+for topic in new_topics:
+    if any(title_similar(topic['title'], et) for et in existing_titles):
+        continue
+    data['topics'].insert(0, topic)  # 新内容放最前面
+    existing_titles.insert(0, topic['title'])
+    added += 1
+
+# 控制总数
+if len(data['topics']) > MAX_TOPICS:
+    data['topics'] = data['topics'][:MAX_TOPICS]
+
+data['last_updated'] = date.today().isoformat()
+
+# 写入文件
+with open("topics.json", "w", encoding="utf-8") as f:
+    json.dump(data, f, ensure_ascii=False, indent=2)
+
+print(f"更新完成。新增 {added} 条选题，当前共 {len(data['topics'])} 条。")
